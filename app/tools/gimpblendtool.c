@@ -889,13 +889,16 @@ gimp_blend_tool_gradient_dirty (GimpBlendTool *blend_tool)
   if (! blend_tool->filter)
     return;
 
-  /* Set a property on the node. Otherwise it will cache and refuse to update */
-  gegl_node_set (blend_tool->render_node,
-                 "gradient", blend_tool->gradient,
-                 NULL);
+  if (! blend_tool->tentative_gradient)
+    {
+      /* Set a property on the node. Otherwise it will cache and refuse to update */
+      gegl_node_set (blend_tool->render_node,
+                     "gradient", blend_tool->gradient,
+                     NULL);
 
-  /* Update the filter */
-  gimp_drawable_filter_apply (blend_tool->filter, NULL);
+      /* Update the filter */
+      gimp_drawable_filter_apply (blend_tool->filter, NULL);
+    }
 
   gimp_blend_tool_editor_gradient_dirty (blend_tool);
 }
@@ -981,4 +984,35 @@ gimp_blend_tool_filter_flush (GimpDrawableFilter *filter,
   GimpImage *image = gimp_display_get_image (tool->display);
 
   gimp_projection_flush (gimp_image_get_projection (image));
+}
+
+
+/*  protected functions  */
+
+
+void
+gimp_blend_tool_set_tentative_gradient (GimpBlendTool *blend_tool,
+                                        GimpGradient  *gradient)
+{
+  g_return_if_fail (GIMP_IS_BLEND_TOOL (blend_tool));
+  g_return_if_fail (gradient == NULL || GIMP_IS_GRADIENT (gradient));
+
+  if (gradient != blend_tool->tentative_gradient)
+    {
+      g_clear_object (&blend_tool->tentative_gradient);
+
+      blend_tool->tentative_gradient = gradient;
+
+      if (gradient)
+        g_object_ref (gradient);
+
+      if (blend_tool->render_node)
+        {
+          gegl_node_set (blend_tool->render_node,
+                         "gradient", gradient ? gradient : blend_tool->gradient,
+                         NULL);
+
+          gimp_drawable_filter_apply (blend_tool->filter, NULL);
+        }
+    }
 }
